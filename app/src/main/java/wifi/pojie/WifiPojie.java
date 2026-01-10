@@ -30,6 +30,7 @@ public class WifiPojie {
     private boolean isDestroyed = false;
     private int currentTryIndex;
     private final Context context;
+    private String dictionaryFileName;
 
     /**
      * 构造函数
@@ -56,6 +57,7 @@ public class WifiPojie {
         this.progressFunction = progressFunction;
         this.endFunc = endFunc;
         this.currentTryIndex = (int) config.get("startLine") - 1;
+        this.dictionaryFileName = config.get("dictionaryFileName") != null ? (String) config.get("dictionaryFileName") : "未指定";
 
         // 在后台线程启动破解过程
         logOutputFunction.accept("      _      __                 _        \n" +
@@ -187,6 +189,8 @@ public class WifiPojie {
                     if (correctPassword != null && !"N/A".equals(correctPassword)) {
                         obj.put("correctPassword", correctPassword);
                     }
+                    // 更新字典文件名
+                    obj.put("dictionaryFileName", dictionaryFileName);
                     found = true;
                     break;
                 }
@@ -201,6 +205,7 @@ public class WifiPojie {
                 attemptObject.put("ssid", ssid);
                 attemptObject.put("attemptCount", 1);
                 attemptObject.put("correctPassword", correctPassword != null ? correctPassword : "N/A");
+                attemptObject.put("dictionaryFileName", dictionaryFileName);
                 attemptsArray.put(attemptObject);
             } catch (JSONException e) {
                 Log.e("WifiPojie", "创建新记录对象时出错", e);
@@ -209,7 +214,7 @@ public class WifiPojie {
         // 保存更新后的记录
         editor.putString("attempts", attemptsArray.toString());
         editor.apply();
-        Log.i("WifiPojie", "记录已保存: SSID=" + ssid + ", 尝试次数=" + attemptCount + ", 密码=" + (correctPassword != null ? correctPassword : "N/A"));
+        Log.i("WifiPojie", "记录已保存: SSID=" + ssid + ", 尝试次数=" + attemptCount + ", 密码=" + (correctPassword != null ? correctPassword : "N/A") + ", 字典文件=" + dictionaryFileName);
     }
 
     public void destroy(boolean byUser) {

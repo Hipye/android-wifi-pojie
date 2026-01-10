@@ -506,6 +506,7 @@ public class PojieActivity extends Fragment {
                     config.put("failSign", failSign.getSelectedId());
                     config.put("failSignTimeout",Integer.parseInt(failTimeoutInput.getText().toString()));
                     config.put("failSignCount",Integer.parseInt(failCountInput.getText().toString()));
+                    config.put("dictionaryFileName", currentDictFileName);
 
 
                     Gson gson = new Gson();

@@ -84,7 +84,8 @@ public class HistoryActivity extends Fragment {
                 String ssid = jsonObject.getString("ssid");
                 int attemptCount = jsonObject.getInt("attemptCount");
                 String password = jsonObject.optString("correctPassword", "N/A");
-                historyItemList.add(new HistoryItem(ssid, attemptCount, password));
+                String dictionaryFileName = jsonObject.optString("dictionaryFileName", "未指定");
+                historyItemList.add(new HistoryItem(ssid, attemptCount, password, dictionaryFileName));
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -124,11 +125,13 @@ public class HistoryActivity extends Fragment {
         private final String ssid;
         private final int attemptCount;
         private final String correctPassword;
+        private final String dictionaryFileName;
 
-        public HistoryItem(String ssid, int attemptCount, String correctPassword) {
+        public HistoryItem(String ssid, int attemptCount, String correctPassword, String dictionaryFileName) {
             this.ssid = ssid;
             this.attemptCount = attemptCount;
             this.correctPassword = correctPassword;
+            this.dictionaryFileName = dictionaryFileName;
         }
 
         public String getSsid() {
@@ -141,6 +144,10 @@ public class HistoryActivity extends Fragment {
 
         public String getCorrectPassword() {
             return correctPassword;
+        }
+
+        public String getDictionaryFileName() {
+            return dictionaryFileName;
         }
     }
 
@@ -180,6 +187,7 @@ public class HistoryActivity extends Fragment {
                 holder = new ViewHolder();
                 holder.ssidTextView = convertView.findViewById(R.id.history_name);
                 holder.detailsTextView = convertView.findViewById(R.id.history_details);
+                holder.dictionaryTextView = convertView.findViewById(R.id.history_dictionary);
                 holder.deleteButton = convertView.findViewById(R.id.delete_button);
                 convertView.setTag(holder);
             } else {
@@ -194,6 +202,7 @@ public class HistoryActivity extends Fragment {
                 password = "-";
             }
             holder.detailsTextView.setText("次数: " + item.getAttemptCount() + "  密码: " + password);
+            holder.dictionaryTextView.setText("字典: " + item.getDictionaryFileName());
 
             holder.deleteButton.setOnClickListener(v -> {
                 historyItems.remove(position);
@@ -207,6 +216,7 @@ public class HistoryActivity extends Fragment {
         private class ViewHolder {
             TextView ssidTextView;
             TextView detailsTextView;
+            TextView dictionaryTextView;
             ImageButton deleteButton;
         }
     }

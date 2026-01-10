@@ -18,7 +18,9 @@ import android.graphics.drawable.Icon;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 import android.util.Rational;
 import android.view.LayoutInflater;
@@ -231,7 +233,9 @@ public class PojieActivity extends Fragment {
         logSettings();
         setupClickListeners();
 
-        checkAndRestoreSavedStateAsync();
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            checkAndRestoreSavedStateAsync();
+        }, 500);
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(WifiPojieService.ACTION_LOG_OUTPUT);
@@ -580,6 +584,10 @@ public class PojieActivity extends Fragment {
      * @throws IOException 读取文件时发生错误
      */
     private void handleDictionarySelected(Uri uri, String fileName) {
+        handleDictionarySelected(uri, fileName, false);
+    }
+
+    private void handleDictionarySelected(Uri uri, String fileName, boolean fromRestore) {
         if (uri == null || getActivity() == null) {
             return;
         }
@@ -604,21 +612,29 @@ public class PojieActivity extends Fragment {
 
                     Toast.makeText(getActivity(), "加载完毕，共" + dictionary.length + "项", Toast.LENGTH_SHORT).show();
                     addLog("字典文件加载完成: " + fileName + " (" + dictionary.length + " 项)");
-                    
-                    WifiApplication.clearCurrentState(requireContext());
+
+                    if (fromRestore) {
+                        WifiApplication.clearCurrentState(requireContext());
+                        addLog("状态恢复完成");
+                    }
                 });
             } catch (IOException e) {
                 requireActivity().runOnUiThread(() -> {
                     t.cancel();
                     Log.e(TAG, "读取字典文件失败", e);
-                    
+
                     if (e.getMessage() != null && e.getMessage().contains("FileNotFoundException")) {
                         Toast.makeText(getActivity(), "文件不存在或已被移动，请重新选择", Toast.LENGTH_LONG).show();
                         addLog("字典文件不存在: " + fileName + "，请重新选择");
-                        
+
                         currentDictFileUri = null;
                         currentDictFileName = "";
                         dictionarySelect.setText("选择字典文件");
+
+                        if (fromRestore) {
+                            WifiApplication.clearCurrentState(requireContext());
+                            addLog("自动恢复失败，请手动选择字典文件");
+                        }
                     } else {
                         Toast.makeText(getActivity(), "读取失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
                         addLog("字典文件读取失败: " + e.getMessage());
@@ -629,6 +645,10 @@ public class PojieActivity extends Fragment {
                     t.cancel();
                     Log.e(TAG, "处理字典文件时出错", e);
                     Toast.makeText(getActivity(), "处理文件时出错", Toast.LENGTH_SHORT).show();
+
+                    if (fromRestore) {
+                        WifiApplication.clearCurrentState(requireContext());
+                    }
                 });
             }
         });
@@ -746,7 +766,7 @@ public class PojieActivity extends Fragment {
     }
 
     private void checkAndRestoreSavedStateAsync() {
-        if (isCheckingSavedState) {
+        if (isCheckingSavedState || !isAdded()) {
             return;
         }
 
@@ -764,10 +784,38 @@ public class PojieActivity extends Fragment {
                     }
 
                     requireActivity().runOnUiThread(() -> {
-                        showStateRecoveryDialog(ssid, dictFileName, dictFileUri, startLine);
+                        if (dictFileUri != null && checkFileUriValid(dictFileUri)) {
+                            autoRestoreState(ssid, dictFileName, dictFileUri, startLine);
+                        } else {
+                            showStateRecoveryDialog(ssid, dictFileName, dictFileUri, startLine);
+                        }
                     });
                 }
             });
+    }
+
+    private void autoRestoreState(String ssid, String dictFileName, Uri dictFileUri, int startLine) {
+        addLog("自动恢复上次运行状态...");
+
+        if (!ssid.isEmpty()) {
+            wifiSsid.setText(ssid);
+        }
+
+        if (startLine > 1) {
+            this.startLine.setText(String.valueOf(startLine));
+            addLog("已恢复开始行数: " + startLine);
+        }
+
+        if (dictFileUri != null && !dictFileName.isEmpty()) {
+            dictionarySelect.setText(dictFileName);
+            currentDictFileName = dictFileName;
+            currentDictFileUri = dictFileUri;
+
+            addLog("正在自动加载保存的字典文件: " + dictFileName);
+            handleDictionarySelected(dictFileUri, dictFileName, true);
+        } else {
+            WifiApplication.clearCurrentState(requireContext());
+        }
     }
 
     private void showStateRecoveryDialog(String savedSsid, String savedDictFileName, Uri savedDictFileUri, int savedStartLine) {
@@ -791,21 +839,21 @@ public class PojieActivity extends Fragment {
                     startLine.setText(String.valueOf(savedStartLine));
                     addLog("已恢复开始行数: " + savedStartLine);
                 }
-                
+
                 if (savedDictFileUri != null && !savedDictFileName.isEmpty()) {
                     dictionarySelect.setText(savedDictFileName);
                     currentDictFileName = savedDictFileName;
                     currentDictFileUri = savedDictFileUri;
-                    
+
                     addLog("正在加载保存的字典文件: " + savedDictFileName);
-                    handleDictionarySelected(savedDictFileUri, savedDictFileName);
+                    handleDictionarySelected(savedDictFileUri, savedDictFileName, true);
                 } else if (!savedDictFileName.isEmpty()) {
                     dictionarySelect.setText(savedDictFileName);
                     currentDictFileName = savedDictFileName;
                     addLog("已恢复字典文件名: " + savedDictFileName + "，请重新选择该字典文件");
+                    WifiApplication.clearCurrentState(requireContext());
                 }
-                
-                WifiApplication.clearCurrentState(requireContext());
+
                 dialog.dismiss();
             })
             .setOnCancelListener(dialog -> {

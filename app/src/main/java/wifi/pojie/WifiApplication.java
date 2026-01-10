@@ -77,15 +77,18 @@ public class WifiApplication extends Application {
                     .putString(KEY_CURRENT_DICT_FILE, dictFileName)
                     .putInt(KEY_CURRENT_START_LINE, startLine)
                     .putBoolean(KEY_CURRENT_STATE_SAVED, true);
-                
+
                 if (dictFileUri != null) {
-                    editor.putString(KEY_CURRENT_DICT_FILE_URI, dictFileUri.toString());
+                    String uriString = dictFileUri.toString();
+                    editor.putString(KEY_CURRENT_DICT_FILE_URI, uriString);
+                    Log.d(TAG, "保存文件Uri: " + uriString);
                 } else {
                     editor.remove(KEY_CURRENT_DICT_FILE_URI);
+                    Log.d(TAG, "清除文件Uri");
                 }
-                
+
                 editor.apply();
-                Log.d(TAG, "状态已保存: ssid=" + ssid + ", dictFile=" + dictFileName + ", uri=" + dictFileUri + ", startLine=" + startLine);
+                Log.d(TAG, "状态已保存: ssid=" + ssid + ", dictFile=" + dictFileName + ", uriExists=" + (dictFileUri != null) + ", startLine=" + startLine);
             } catch (Exception e) {
                 Log.e(TAG, "保存状态详情失败", e);
             }
@@ -123,30 +126,34 @@ public class WifiApplication extends Application {
                 String dictFileName = "";
                 Uri dictFileUri = null;
                 int startLine = 1;
-                
+
                 if (hasState) {
                     SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
                     ssid = prefs.getString(KEY_CURRENT_SSID, "");
                     dictFileName = prefs.getString(KEY_CURRENT_DICT_FILE, "");
                     startLine = prefs.getInt(KEY_CURRENT_START_LINE, 1);
-                    
+
                     String uriString = prefs.getString(KEY_CURRENT_DICT_FILE_URI, null);
                     if (uriString != null && !uriString.isEmpty()) {
                         try {
                             dictFileUri = Uri.parse(uriString);
-                            Log.d(TAG, "恢复字典文件Uri: " + uriString);
+                            Log.d(TAG, "恢复字典文件Uri: " + uriString + ", ssid=" + ssid + ", filename=" + dictFileName);
                         } catch (Exception e) {
                             Log.e(TAG, "解析保存的Uri失败", e);
                         }
+                    } else {
+                        Log.d(TAG, "没有保存的文件Uri, ssid=" + ssid + ", filename=" + dictFileName);
                     }
+                } else {
+                    Log.d(TAG, "没有保存的状态");
                 }
-                
+
                 final boolean finalHasState = hasState;
                 final String finalSsid = ssid;
                 final String finalDictFileName = dictFileName;
                 final Uri finalDictFileUri = dictFileUri;
                 final int finalStartLine = startLine;
-                
+
                 mainHandler.post(() -> {
                     if (callback != null) {
                         callback.onStateChecked(finalHasState, finalSsid, finalDictFileName, finalDictFileUri, finalStartLine);

@@ -33,7 +33,6 @@ import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.ScrollView;
 import android.widget.TextView;
-
 import View.SegmentedButtonGroup;
 
 import android.widget.Toast;
@@ -48,6 +47,9 @@ import androidx.core.view.ViewCompat;
 import androidx.fragment.app.Fragment;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.gson.Gson;
 
@@ -86,6 +88,9 @@ public class PojieActivity extends Fragment {
 
     private volatile boolean isRunning = false;
     private String[] dictionary = new String[]{}; // 默认词典
+    private String currentDictFileName = "";
+    private Uri currentDictFileUri = null;
+    private boolean isCheckingSavedState = false;
     private WifiPojieService wifiPojieService;
     private boolean isServiceBound = false;
     private SettingsManager settingsManager;
@@ -181,29 +186,11 @@ public class PojieActivity extends Fragment {
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
                     if (result.getResultCode() == AppCompatActivity.RESULT_OK && result.getData() != null) {
-                        Toast t = Toast.makeText(getActivity(), "正在加载", Toast.LENGTH_SHORT);
-                        t.show();
-                        dictionarySelect.postDelayed(() -> {
-                            Uri uri = result.getData().getData();
-                            if (uri != null && getActivity() != null) {
-                                try {
-                                    dictionary = readDictionaryFromFile(uri);
-                                    t.cancel();
-                                    Toast.makeText(getActivity(), "加载完毕，共" + dictionary.length + "项", Toast.LENGTH_SHORT).show();
-
-                                    // 获取文件名并设置到按钮上
-                                    String fileName = getFileNameFromUri(uri);
-                                    if (fileName != null) {
-                                        getActivity().runOnUiThread(() -> dictionarySelect.setText(fileName));
-                                    }
-                                } catch (IOException e) {
-                                    Log.e(TAG, "读取字典文件失败", e);
-                                    if (getActivity() != null) {
-                                        Toast.makeText(getActivity(), "读取失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                                    }
-                                }
-                            }
-                        }, 0);
+                        Uri uri = result.getData().getData();
+                        if (uri != null && getActivity() != null) {
+                            String fileName = getFileNameFromUri(uri);
+                            handleDictionarySelected(uri, fileName);
+                        }
                     }
                 }
         );
@@ -231,11 +218,9 @@ public class PojieActivity extends Fragment {
     public void onViewCreated(@NonNull View view, Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
 
-        // 处理状态栏边距
         handleStatusBarInset(view);
 
-        initViews(view);
-        // 发送初始状态广播
+        initViews();
         Intent initialStateIntent = new Intent("ACTION_STATE_CHANGED");
         initialStateIntent.putExtra("isRunning", isRunning);
         if (getActivity() != null) {
@@ -246,7 +231,8 @@ public class PojieActivity extends Fragment {
         logSettings();
         setupClickListeners();
 
-        // 注册广播接收器
+        checkAndRestoreSavedStateAsync();
+
         IntentFilter filter = new IntentFilter();
         filter.addAction(WifiPojieService.ACTION_LOG_OUTPUT);
         filter.addAction(WifiPojieService.ACTION_PROGRESS_UPDATE);
@@ -257,7 +243,6 @@ public class PojieActivity extends Fragment {
             getActivity().registerReceiver(pipBroadcastReceiver, new IntentFilter(ACTION_PIP_EXECUTE));
             getActivity().registerReceiver(pipButtonClickReceiver, new IntentFilter("wifi.pojie.ACTION_PIP_BUTTON_CLICK"));
 
-            // 绑定服务
             Intent intent = new Intent(getActivity(), WifiPojieService.class);
             getActivity().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
         }
@@ -309,7 +294,8 @@ public class PojieActivity extends Fragment {
      * 初始化所有视图组件
      */
     @SuppressLint("SetTextI18n")
-    private void initViews(View view) {
+    private void initViews() {
+        View view = getView();
         commandOutput = view.findViewById(R.id.commandOutput);
         executeButton = view.findViewById(R.id.startbtn);
         wifiSsid = view.findViewById(R.id.wifi_ssid);
@@ -434,6 +420,21 @@ public class PojieActivity extends Fragment {
                     return;
                 }
 
+                int startLineNum;
+                try {
+                    startLineNum = Integer.parseInt(startLine.getText().toString());
+                } catch (NumberFormatException e) {
+                    startLineNum = 1;
+                }
+
+                WifiApplication.saveCurrentStateDetails(
+                    requireContext(),
+                    ssid,
+                    currentDictFileName,
+                    startLineNum
+                );
+
+                addLog("运行状态已保存");
                 isRunning = true;
                 if (getActivity() != null) {
                     Intent intent = new Intent("ACTION_STATE_CHANGED");
@@ -559,23 +560,91 @@ public class PojieActivity extends Fragment {
      * @return 按行分割的字符串数组
      * @throws IOException 读取文件时发生错误
      */
+    private void handleDictionarySelected(Uri uri, String fileName) {
+        if (uri == null || getActivity() == null) {
+            return;
+        }
+
+        Toast t = Toast.makeText(getActivity(), "正在加载字典文件...", Toast.LENGTH_SHORT);
+        t.show();
+
+        Executors.newSingleThreadExecutor().submit(() -> {
+            try {
+                String[] loadedDictionary = readDictionaryFromFile(uri);
+
+                requireActivity().runOnUiThread(() -> {
+                    t.cancel();
+                    dictionary = loadedDictionary;
+
+                    currentDictFileName = fileName;
+                    currentDictFileUri = uri;
+
+                    if (fileName != null) {
+                        dictionarySelect.setText(fileName);
+                    }
+
+                    Toast.makeText(getActivity(), "加载完毕，共" + dictionary.length + "项", Toast.LENGTH_SHORT).show();
+                    addLog("字典文件加载完成: " + fileName + " (" + dictionary.length + " 项)");
+                });
+            } catch (IOException e) {
+                requireActivity().runOnUiThread(() -> {
+                    t.cancel();
+                    Log.e(TAG, "读取字典文件失败", e);
+                    Toast.makeText(getActivity(), "读取失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                    addLog("字典文件读取失败: " + e.getMessage());
+                });
+            } catch (Exception e) {
+                requireActivity().runOnUiThread(() -> {
+                    t.cancel();
+                    Log.e(TAG, "处理字典文件时出错", e);
+                    Toast.makeText(getActivity(), "处理文件时出错", Toast.LENGTH_SHORT).show();
+                });
+            }
+        });
+    }
+
     private String[] readDictionaryFromFile(Uri uri) throws IOException {
         List<String> lines = new ArrayList<>();
-        if (getActivity() != null) {
-            InputStream inputStream = getActivity().getContentResolver().openInputStream(uri);
+        InputStream inputStream = null;
+        BufferedReader reader = null;
+
+        try {
+            inputStream = requireActivity().getContentResolver().openInputStream(uri);
             if (inputStream != null) {
-                BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+                reader = new BufferedReader(new InputStreamReader(inputStream));
                 String line;
+                int lineCount = 0;
                 while ((line = reader.readLine()) != null) {
                     line = line.trim();
                     if (!line.isEmpty()) {
                         lines.add(line);
+                        lineCount++;
+                        if (lineCount % 1000 == 0) {
+                            Thread.sleep(1);
+                        }
                     }
                 }
-                reader.close();
-                inputStream.close();
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("读取被中断", e);
+        } finally {
+            if (reader != null) {
+                try {
+                    reader.close();
+                } catch (IOException e) {
+                    Log.w(TAG, "关闭reader失败", e);
+                }
+            }
+            if (inputStream != null) {
+                try {
+                    inputStream.close();
+                } catch (IOException e) {
+                    Log.w(TAG, "关闭inputStream失败", e);
+                }
             }
         }
+
         return lines.toArray(new String[0]);
     }
 
@@ -615,6 +684,8 @@ public class PojieActivity extends Fragment {
         }
         isRunning = false;
 
+        WifiApplication.clearCurrentState(requireContext());
+
         if (settingsManager.getBoolean(SettingsManager.KEY_KEEP_SCREEN_ON)) {
             if (getActivity() != null) {
                 getActivity().getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -641,6 +712,67 @@ public class PojieActivity extends Fragment {
                 updatePictureInPictureParams();
             });
         }
+    }
+
+    private void checkAndRestoreSavedStateAsync() {
+        if (isCheckingSavedState) {
+            return;
+        }
+
+        isCheckingSavedState = true;
+        addLog("正在检查上次运行状态...");
+
+        WifiApplication.checkSavedStateAsync(requireContext(),
+            new WifiApplication.StateCheckCallback() {
+                @Override
+                public void onStateChecked(boolean hasState, String ssid, String dictFileName, int startLine) {
+                    isCheckingSavedState = false;
+
+                    if (!hasState || !isAdded()) {
+                        return;
+                    }
+
+                    requireActivity().runOnUiThread(() -> {
+                        showStateRecoveryDialog(ssid, dictFileName, startLine);
+                    });
+                }
+            });
+    }
+
+    private void showStateRecoveryDialog(String savedSsid, String savedDictFileName, int savedStartLine) {
+        new MaterialAlertDialogBuilder(requireActivity())
+            .setTitle("恢复上次运行")
+            .setMessage("检测到上次运行因异常退出，是否恢复以下设置？\n\n" +
+                      "WiFi: " + (savedSsid.isEmpty() ? "无" : savedSsid) + "\n" +
+                      "字典文件: " + (savedDictFileName.isEmpty() ? "无" : savedDictFileName) + "\n" +
+                      "开始行数: " + savedStartLine)
+            .setNegativeButton("忽略", (dialog, which) -> {
+                WifiApplication.clearCurrentState(requireContext());
+                addLog("已忽略上次运行状态");
+                dialog.dismiss();
+            })
+            .setPositiveButton("恢复", (dialog, which) -> {
+                if (!savedSsid.isEmpty()) {
+                    wifiSsid.setText(savedSsid);
+                }
+                if (!savedDictFileName.isEmpty()) {
+                    dictionarySelect.setText(savedDictFileName);
+                    currentDictFileName = savedDictFileName;
+                    addLog("已恢复字典文件名: " + savedDictFileName + "，请重新选择该字典文件");
+                }
+                if (savedStartLine > 1) {
+                    startLine.setText(String.valueOf(savedStartLine));
+                    addLog("已恢复开始行数: " + savedStartLine);
+                }
+
+                WifiApplication.clearCurrentState(requireContext());
+                addLog("状态已恢复");
+                dialog.dismiss();
+            })
+            .setOnCancelListener(dialog -> {
+                WifiApplication.clearCurrentState(requireContext());
+            })
+            .show();
     }
 
     private void updatePictureInPictureParams() {

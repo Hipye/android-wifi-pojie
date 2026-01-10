@@ -4,6 +4,7 @@ import android.app.Application;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
@@ -16,6 +17,7 @@ public class WifiApplication extends Application {
     private static final String PREFS_NAME = "wifi_pojie_state";
     private static final String KEY_CURRENT_SSID = "current_ssid";
     private static final String KEY_CURRENT_DICT_FILE = "current_dict_file";
+    private static final String KEY_CURRENT_DICT_FILE_URI = "current_dict_file_uri";
     private static final String KEY_CURRENT_START_LINE = "current_start_line";
     private static final String KEY_CURRENT_STATE_SAVED = "current_state_saved";
     
@@ -66,17 +68,24 @@ public class WifiApplication extends Application {
         Log.d(TAG, "异常退出状态已保存");
     }
     
-    public static void saveCurrentStateDetails(Context context, String ssid, String dictFileName, int startLine) {
+    public static void saveCurrentStateDetails(Context context, String ssid, String dictFileName, Uri dictFileUri, int startLine) {
         ioExecutor.submit(() -> {
             try {
                 SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                prefs.edit()
+                SharedPreferences.Editor editor = prefs.edit()
                     .putString(KEY_CURRENT_SSID, ssid)
                     .putString(KEY_CURRENT_DICT_FILE, dictFileName)
                     .putInt(KEY_CURRENT_START_LINE, startLine)
-                    .putBoolean(KEY_CURRENT_STATE_SAVED, true)
-                    .apply();
-                Log.d(TAG, "状态已保存: ssid=" + ssid + ", dictFile=" + dictFileName + ", startLine=" + startLine);
+                    .putBoolean(KEY_CURRENT_STATE_SAVED, true);
+                
+                if (dictFileUri != null) {
+                    editor.putString(KEY_CURRENT_DICT_FILE_URI, dictFileUri.toString());
+                } else {
+                    editor.remove(KEY_CURRENT_DICT_FILE_URI);
+                }
+                
+                editor.apply();
+                Log.d(TAG, "状态已保存: ssid=" + ssid + ", dictFile=" + dictFileName + ", uri=" + dictFileUri + ", startLine=" + startLine);
             } catch (Exception e) {
                 Log.e(TAG, "保存状态详情失败", e);
             }
@@ -90,6 +99,7 @@ public class WifiApplication extends Application {
                 prefs.edit()
                     .remove(KEY_CURRENT_SSID)
                     .remove(KEY_CURRENT_DICT_FILE)
+                    .remove(KEY_CURRENT_DICT_FILE_URI)
                     .remove(KEY_CURRENT_START_LINE)
                     .putBoolean(KEY_CURRENT_STATE_SAVED, false)
                     .apply();
@@ -111,6 +121,7 @@ public class WifiApplication extends Application {
                 boolean hasState = hasSavedStateSync(context);
                 String ssid = "";
                 String dictFileName = "";
+                Uri dictFileUri = null;
                 int startLine = 1;
                 
                 if (hasState) {
@@ -118,23 +129,34 @@ public class WifiApplication extends Application {
                     ssid = prefs.getString(KEY_CURRENT_SSID, "");
                     dictFileName = prefs.getString(KEY_CURRENT_DICT_FILE, "");
                     startLine = prefs.getInt(KEY_CURRENT_START_LINE, 1);
+                    
+                    String uriString = prefs.getString(KEY_CURRENT_DICT_FILE_URI, null);
+                    if (uriString != null && !uriString.isEmpty()) {
+                        try {
+                            dictFileUri = Uri.parse(uriString);
+                            Log.d(TAG, "恢复字典文件Uri: " + uriString);
+                        } catch (Exception e) {
+                            Log.e(TAG, "解析保存的Uri失败", e);
+                        }
+                    }
                 }
                 
                 final boolean finalHasState = hasState;
                 final String finalSsid = ssid;
                 final String finalDictFileName = dictFileName;
+                final Uri finalDictFileUri = dictFileUri;
                 final int finalStartLine = startLine;
                 
                 mainHandler.post(() -> {
                     if (callback != null) {
-                        callback.onStateChecked(finalHasState, finalSsid, finalDictFileName, finalStartLine);
+                        callback.onStateChecked(finalHasState, finalSsid, finalDictFileName, finalDictFileUri, finalStartLine);
                     }
                 });
             } catch (Exception e) {
                 Log.e(TAG, "检查保存状态失败", e);
                 mainHandler.post(() -> {
                     if (callback != null) {
-                        callback.onStateChecked(false, "", "", 1);
+                        callback.onStateChecked(false, "", "", null, 1);
                     }
                 });
             }
@@ -143,28 +165,41 @@ public class WifiApplication extends Application {
     
     public static SavedState getSavedStateSync(Context context) {
         SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String uriString = prefs.getString(KEY_CURRENT_DICT_FILE_URI, null);
+        Uri dictFileUri = null;
+        if (uriString != null && !uriString.isEmpty()) {
+            try {
+                dictFileUri = Uri.parse(uriString);
+            } catch (Exception e) {
+                Log.e(TAG, "解析保存的Uri失败", e);
+            }
+        }
+        
         return new SavedState(
             prefs.getBoolean(KEY_CURRENT_STATE_SAVED, false),
             prefs.getString(KEY_CURRENT_SSID, ""),
             prefs.getString(KEY_CURRENT_DICT_FILE, ""),
+            dictFileUri,
             prefs.getInt(KEY_CURRENT_START_LINE, 1)
         );
     }
     
     public interface StateCheckCallback {
-        void onStateChecked(boolean hasState, String ssid, String dictFileName, int startLine);
+        void onStateChecked(boolean hasState, String ssid, String dictFileName, Uri dictFileUri, int startLine);
     }
     
     public static class SavedState {
         public final boolean hasState;
         public final String ssid;
         public final String dictFileName;
+        public final Uri dictFileUri;
         public final int startLine;
         
-        public SavedState(boolean hasState, String ssid, String dictFileName, int startLine) {
+        public SavedState(boolean hasState, String ssid, String dictFileName, Uri dictFileUri, int startLine) {
             this.hasState = hasState;
             this.ssid = ssid;
             this.dictFileName = dictFileName;
+            this.dictFileUri = dictFileUri;
             this.startLine = startLine;
         }
     }

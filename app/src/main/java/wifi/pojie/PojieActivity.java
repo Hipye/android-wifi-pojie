@@ -431,6 +431,7 @@ public class PojieActivity extends Fragment {
                     requireContext(),
                     ssid,
                     currentDictFileName,
+                    currentDictFileUri,
                     startLineNum
                 );
 
@@ -553,6 +554,24 @@ public class PojieActivity extends Fragment {
         }
     }
 
+    private boolean checkFileUriValid(Uri uri) {
+        if (uri == null) {
+            return false;
+        }
+        
+        try {
+            InputStream inputStream = requireActivity().getContentResolver().openInputStream(uri);
+            if (inputStream != null) {
+                inputStream.close();
+                return true;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "检查文件Uri有效性失败", e);
+        }
+        
+        return false;
+    }
+
     /**
      * 从Uri读取文本文件并按行分割成字符串数组
      *
@@ -585,13 +604,25 @@ public class PojieActivity extends Fragment {
 
                     Toast.makeText(getActivity(), "加载完毕，共" + dictionary.length + "项", Toast.LENGTH_SHORT).show();
                     addLog("字典文件加载完成: " + fileName + " (" + dictionary.length + " 项)");
+                    
+                    WifiApplication.clearCurrentState(requireContext());
                 });
             } catch (IOException e) {
                 requireActivity().runOnUiThread(() -> {
                     t.cancel();
                     Log.e(TAG, "读取字典文件失败", e);
-                    Toast.makeText(getActivity(), "读取失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
-                    addLog("字典文件读取失败: " + e.getMessage());
+                    
+                    if (e.getMessage() != null && e.getMessage().contains("FileNotFoundException")) {
+                        Toast.makeText(getActivity(), "文件不存在或已被移动，请重新选择", Toast.LENGTH_LONG).show();
+                        addLog("字典文件不存在: " + fileName + "，请重新选择");
+                        
+                        currentDictFileUri = null;
+                        currentDictFileName = "";
+                        dictionarySelect.setText("选择字典文件");
+                    } else {
+                        Toast.makeText(getActivity(), "读取失败: " + e.getMessage(), Toast.LENGTH_LONG).show();
+                        addLog("字典文件读取失败: " + e.getMessage());
+                    }
                 });
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() -> {
@@ -725,7 +756,7 @@ public class PojieActivity extends Fragment {
         WifiApplication.checkSavedStateAsync(requireContext(),
             new WifiApplication.StateCheckCallback() {
                 @Override
-                public void onStateChecked(boolean hasState, String ssid, String dictFileName, int startLine) {
+                public void onStateChecked(boolean hasState, String ssid, String dictFileName, Uri dictFileUri, int startLine) {
                     isCheckingSavedState = false;
 
                     if (!hasState || !isAdded()) {
@@ -733,40 +764,48 @@ public class PojieActivity extends Fragment {
                     }
 
                     requireActivity().runOnUiThread(() -> {
-                        showStateRecoveryDialog(ssid, dictFileName, startLine);
+                        showStateRecoveryDialog(ssid, dictFileName, dictFileUri, startLine);
                     });
                 }
             });
     }
 
-    private void showStateRecoveryDialog(String savedSsid, String savedDictFileName, int savedStartLine) {
+    private void showStateRecoveryDialog(String savedSsid, String savedDictFileName, Uri savedDictFileUri, int savedStartLine) {
         new MaterialAlertDialogBuilder(requireActivity())
             .setTitle("恢复上次运行")
             .setMessage("检测到上次运行因异常退出，是否恢复以下设置？\n\n" +
                       "WiFi: " + (savedSsid.isEmpty() ? "无" : savedSsid) + "\n" +
                       "字典文件: " + (savedDictFileName.isEmpty() ? "无" : savedDictFileName) + "\n" +
-                      "开始行数: " + savedStartLine)
+                      "开始行数: " + savedStartLine + "\n\n" +
+                      (savedDictFileUri != null ? "可以直接加载保存的字典文件" : "需要重新选择字典文件"))
             .setNegativeButton("忽略", (dialog, which) -> {
                 WifiApplication.clearCurrentState(requireContext());
                 addLog("已忽略上次运行状态");
                 dialog.dismiss();
             })
-            .setPositiveButton("恢复", (dialog, which) -> {
+            .setPositiveButton("恢复并加载", (dialog, which) -> {
                 if (!savedSsid.isEmpty()) {
                     wifiSsid.setText(savedSsid);
-                }
-                if (!savedDictFileName.isEmpty()) {
-                    dictionarySelect.setText(savedDictFileName);
-                    currentDictFileName = savedDictFileName;
-                    addLog("已恢复字典文件名: " + savedDictFileName + "，请重新选择该字典文件");
                 }
                 if (savedStartLine > 1) {
                     startLine.setText(String.valueOf(savedStartLine));
                     addLog("已恢复开始行数: " + savedStartLine);
                 }
-
+                
+                if (savedDictFileUri != null && !savedDictFileName.isEmpty()) {
+                    dictionarySelect.setText(savedDictFileName);
+                    currentDictFileName = savedDictFileName;
+                    currentDictFileUri = savedDictFileUri;
+                    
+                    addLog("正在加载保存的字典文件: " + savedDictFileName);
+                    handleDictionarySelected(savedDictFileUri, savedDictFileName);
+                } else if (!savedDictFileName.isEmpty()) {
+                    dictionarySelect.setText(savedDictFileName);
+                    currentDictFileName = savedDictFileName;
+                    addLog("已恢复字典文件名: " + savedDictFileName + "，请重新选择该字典文件");
+                }
+                
                 WifiApplication.clearCurrentState(requireContext());
-                addLog("状态已恢复");
                 dialog.dismiss();
             })
             .setOnCancelListener(dialog -> {

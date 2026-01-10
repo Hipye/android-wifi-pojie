@@ -50,6 +50,7 @@ import androidx.fragment.app.Fragment;
 
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
+import java.lang.ref.WeakReference;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
@@ -68,6 +69,26 @@ public class PojieActivity extends Fragment {
     private static final String TAG = "PojieActivity";
     private static final int NOTIFICATION_ID = 1;
     private static final String CHANNEL_ID = "wifi_pojie_channel";
+    private static final ExecutorService fileReadExecutor = Executors.newFixedThreadPool(2);
+    private static final ExecutorService stateCheckExecutor = Executors.newSingleThreadExecutor();
+    private static final Handler mainHandler = new Handler(Looper.getMainLooper());
+
+    private static class SafeHandler extends Handler {
+        private final WeakReference<PojieActivity> activityRef;
+
+        SafeHandler(PojieActivity activity) {
+            super(Looper.getMainLooper());
+            this.activityRef = new WeakReference<>(activity);
+        }
+
+        @Override
+        public void handleMessage(android.os.Message msg) {
+            PojieActivity activity = activityRef.get();
+            if (activity != null && activity.isAdded()) {
+                super.handleMessage(msg);
+            }
+        }
+    }
 
     private TextView commandOutput;
     private Button executeButton;
@@ -243,9 +264,15 @@ public class PojieActivity extends Fragment {
         filter.addAction(WifiPojieService.ACTION_FINISHED);
 
         if (getActivity() != null) {
-            getActivity().registerReceiver(serviceBroadcastReceiver, filter);
-            getActivity().registerReceiver(pipBroadcastReceiver, new IntentFilter(ACTION_PIP_EXECUTE));
-            getActivity().registerReceiver(pipButtonClickReceiver, new IntentFilter("wifi.pojie.ACTION_PIP_BUTTON_CLICK"));
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                getActivity().registerReceiver(serviceBroadcastReceiver, filter, Context.RECEIVER_NOT_EXPORTED);
+                getActivity().registerReceiver(pipBroadcastReceiver, new IntentFilter(ACTION_PIP_EXECUTE), Context.RECEIVER_NOT_EXPORTED);
+                getActivity().registerReceiver(pipButtonClickReceiver, new IntentFilter("wifi.pojie.ACTION_PIP_BUTTON_CLICK"), Context.RECEIVER_NOT_EXPORTED);
+            } else {
+                getActivity().registerReceiver(serviceBroadcastReceiver, filter);
+                getActivity().registerReceiver(pipBroadcastReceiver, new IntentFilter(ACTION_PIP_EXECUTE));
+                getActivity().registerReceiver(pipButtonClickReceiver, new IntentFilter("wifi.pojie.ACTION_PIP_BUTTON_CLICK"));
+            }
 
             Intent intent = new Intent(getActivity(), WifiPojieService.class);
             getActivity().bindService(intent, serviceConnection, Context.BIND_AUTO_CREATE);
@@ -368,11 +395,10 @@ public class PojieActivity extends Fragment {
         else commandOutput.append("\n" + output);
 
         if (autoscroll.isChecked()) {
-            scrollView.postDelayed(() -> {
-                int contentHeight = scrollView.getChildAt(0).getMeasuredHeight();
-                scrollView.smoothScrollTo(0, contentHeight);
+            scrollView.post(() -> {
+                scrollView.fullScroll(View.FOCUS_DOWN);
                 horizontalScrollView.smoothScrollTo(0, 0);
-            }, 0);
+            });
         }
 
         ((MainActivity) requireActivity()).addPipLog(output);
@@ -595,7 +621,7 @@ public class PojieActivity extends Fragment {
         Toast t = Toast.makeText(getActivity(), "正在加载字典文件...", Toast.LENGTH_SHORT);
         t.show();
 
-        Executors.newSingleThreadExecutor().submit(() -> {
+        fileReadExecutor.submit(() -> {
             try {
                 String[] loadedDictionary = readDictionaryFromFile(uri);
 
@@ -656,42 +682,17 @@ public class PojieActivity extends Fragment {
 
     private String[] readDictionaryFromFile(Uri uri) throws IOException {
         List<String> lines = new ArrayList<>();
-        InputStream inputStream = null;
-        BufferedReader reader = null;
 
-        try {
-            inputStream = requireActivity().getContentResolver().openInputStream(uri);
+        try (InputStream inputStream = requireActivity().getContentResolver().openInputStream(uri);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream), 16384)) {
+            
             if (inputStream != null) {
-                reader = new BufferedReader(new InputStreamReader(inputStream));
                 String line;
-                int lineCount = 0;
                 while ((line = reader.readLine()) != null) {
                     line = line.trim();
                     if (!line.isEmpty()) {
                         lines.add(line);
-                        lineCount++;
-                        if (lineCount % 1000 == 0) {
-                            Thread.sleep(1);
-                        }
                     }
-                }
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("读取被中断", e);
-        } finally {
-            if (reader != null) {
-                try {
-                    reader.close();
-                } catch (IOException e) {
-                    Log.w(TAG, "关闭reader失败", e);
-                }
-            }
-            if (inputStream != null) {
-                try {
-                    inputStream.close();
-                } catch (IOException e) {
-                    Log.w(TAG, "关闭inputStream失败", e);
                 }
             }
         }

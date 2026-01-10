@@ -201,7 +201,7 @@ public class HistoryActivity extends Fragment {
             if (password == null || password.equals("N/A") || password.isEmpty()) {
                 password = "-";
             }
-            holder.detailsTextView.setText("次数: " + item.getAttemptCount() + "  密码: " + password);
+            holder.detailsTextView.setText("已使用行数: " + item.getAttemptCount() + "  密码: " + password);
             holder.dictionaryTextView.setText("字典: " + item.getDictionaryFileName());
 
             holder.deleteButton.setOnClickListener(v -> {

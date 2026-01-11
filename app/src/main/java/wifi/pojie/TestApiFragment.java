@@ -12,7 +12,6 @@ import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
 import android.os.Build;
 import android.os.Bundle;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -93,7 +92,6 @@ public class TestApiFragment extends Fragment {
             @Override
             public void onAvailable(@NonNull Network network) {
                 super.onAvailable(network);
-                Log.d(TAG, "网络连接成功");
                 requireActivity().runOnUiThread(() -> 
                     Toast.makeText(getContext(), "WiFi连接成功", Toast.LENGTH_SHORT).show()
                 );
@@ -104,7 +102,6 @@ public class TestApiFragment extends Fragment {
             @Override
             public void onUnavailable() {
                 super.onUnavailable();
-                Log.d(TAG, "网络连接失败");
                 requireActivity().runOnUiThread(() -> 
                     Toast.makeText(getContext(), "WiFi连接失败", Toast.LENGTH_SHORT).show()
                 );
@@ -133,8 +130,6 @@ public class TestApiFragment extends Fragment {
             wifiManager.enableNetwork(netId, true);
             Toast.makeText(getContext(), "正在连接WiFi...", Toast.LENGTH_SHORT).show();
             //wifiManager.setWifiEnabled(true);
-        } else {
-            Log.e("WifiManager", "Failed to add network");
         }
     }
 

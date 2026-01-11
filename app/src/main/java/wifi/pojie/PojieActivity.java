@@ -22,7 +22,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.util.Log;
 import android.util.Rational;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -201,13 +200,11 @@ public class PojieActivity extends Fragment {
             WifiPojieService.LocalBinder binder = (WifiPojieService.LocalBinder) service;
             wifiPojieService = binder.getService();
             isServiceBound = true;
-            Log.d(TAG, "Connected to WifiPojieService");
         }
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
             isServiceBound = false;
-            Log.d(TAG, "Disconnected from WifiPojieService");
         }
     };
 
@@ -555,7 +552,6 @@ public class PojieActivity extends Fragment {
         });
 
         dictionarySelect.setOnClickListener(v -> {
-            Log.d(TAG, "Selecting dictionary");
             Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
             intent.setType("text/plain");
             intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
@@ -626,7 +622,6 @@ public class PojieActivity extends Fragment {
                 return true;
             }
         } catch (Exception e) {
-            Log.e(TAG, "检查文件Uri有效性失败", e);
         }
         
         return false;
@@ -677,7 +672,6 @@ public class PojieActivity extends Fragment {
             } catch (IOException e) {
                 requireActivity().runOnUiThread(() -> {
                     t.cancel();
-                    Log.e(TAG, "读取字典文件失败", e);
 
                     if (e.getMessage() != null && e.getMessage().contains("FileNotFoundException")) {
                         Toast.makeText(getActivity(), "文件不存在或已被移动，请重新选择", Toast.LENGTH_LONG).show();
@@ -699,7 +693,6 @@ public class PojieActivity extends Fragment {
             } catch (Exception e) {
                 requireActivity().runOnUiThread(() -> {
                     t.cancel();
-                    Log.e(TAG, "处理字典文件时出错", e);
                     Toast.makeText(getActivity(), "处理文件时出错", Toast.LENGTH_SHORT).show();
 
                     if (fromRestore) {
@@ -755,14 +748,12 @@ public class PojieActivity extends Fragment {
 
             return fileName;
         } catch (Exception e) {
-            Log.e(TAG, "获取文件名失败", e);
             return null;
         }
     }
 
     private void handleMultipleDictionariesSelected(ClipData clipData) {
         int count = clipData.getItemCount();
-        Log.d(TAG, "选择了 " + count + " 个字典文件");
         
         Toast t = Toast.makeText(getActivity(), "正在加载 " + count + " 个字典文件...", Toast.LENGTH_SHORT);
         t.show();
@@ -781,10 +772,8 @@ public class PojieActivity extends Fragment {
                         String[] content = readDictionaryFromFile(uri);
                         loadedDictionaries.add(new DictionaryFile(fileName, uri, content));
                         successCount++;
-                        Log.d(TAG, "成功加载字典: " + fileName + " (" + content.length + " 项)");
                     } catch (Exception e) {
                         failCount++;
-                        Log.e(TAG, "加载字典失败: " + uri, e);
                     }
                 }
             }

@@ -8,7 +8,6 @@ import android.net.wifi.SupplicantState;
 import android.net.wifi.WifiManager;
 import android.os.Handler; // 导入 Handler
 import android.os.Looper; // 导入 Looper
-import android.util.Log;
 
 import java.util.function.Consumer;
 
@@ -29,7 +28,6 @@ public class WifiStateReceiver extends BroadcastReceiver {
         this.handshakeTimeoutHandler = new Handler(Looper.getMainLooper());
         this.handshakeTimeoutRunnable = () -> {
             if (!isDestroyed) {
-                addLog("握手超时");
                 onResult.accept("handshake_timeout");
             }
         };
@@ -46,7 +44,6 @@ public class WifiStateReceiver extends BroadcastReceiver {
             try {
                 context.unregisterReceiver(this);
             } catch (Exception e) {
-                Log.w("WifiStateReceiver", "接收器注销时出错", e);
             }
             handshakeTimeoutHandler.removeCallbacksAndMessages(null);
         }
@@ -73,12 +70,9 @@ public class WifiStateReceiver extends BroadcastReceiver {
             }
 
             if (handshakeTimeout > 0 && stateText.equals("FOUR_WAY_HANDSHAKE")) {
-                addLog("四次握手开始，设置超时: " + handshakeTimeout + "ms");
                 handshakeTimeoutHandler.removeCallbacks(handshakeTimeoutRunnable);
                 handshakeTimeoutHandler.postDelayed(handshakeTimeoutRunnable, handshakeTimeout);
             }
-
-            addLog("Supplicant 状态: " + stateText);
 
         }
 
@@ -88,18 +82,9 @@ public class WifiStateReceiver extends BroadcastReceiver {
 
             assert networkInfo != null;
             if (networkInfo.isConnected()) {
-                addLog("网络连接状态: 已连接 (成功) ✅");
                 handshakeTimeoutHandler.removeCallbacks(handshakeTimeoutRunnable);
                 onResult.accept("success");
-            } else if (networkInfo.getState() == android.net.NetworkInfo.State.DISCONNECTED) {
-                addLog("网络连接状态: 已断开 ⛔");
-            } else {
-                addLog("网络连接状态: " + networkInfo.getState().toString() + "...");
             }
         }
-    }
-
-    private void addLog(String s) {
-        Log.d("WifiStateReceiver", "Receiver:" + s);
     }
 }

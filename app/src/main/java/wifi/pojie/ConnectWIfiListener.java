@@ -1,7 +1,6 @@
 package wifi.pojie;
 
 import android.content.Context;
-import android.util.Log;
 
 import java.util.Map;
 import java.util.function.Consumer;
@@ -44,7 +43,6 @@ public class ConnectWIfiListener {
             handshakeTimeoutHandler = new android.os.Handler(android.os.Looper.getMainLooper());
             handshakeTimeoutRunnable = () -> {
                 if (isDestroyed) return;
-                Log.d("ConnectWifiListener", "握手超时");
                 if (failSign == 1 && this.onEvent != null) {
                     this.onEvent.accept("handshake_timeout");
                 }
@@ -55,11 +53,9 @@ public class ConnectWIfiListener {
                     "logcat -s \"WifiService:D\" \"wpa_supplicant:D\" \"DhcpClient:D\"", listenCmdMode,
                     (line) -> {
                         if (isDestroyed) return;
-                        Log.d("ConnectWifiListener", "收到：" + line);
 
                         // --- 连接失败事件 ---
                         if (Pattern.matches(".*WPA: 4-Way Handshake failed - pre-shared key may be incorrect.*", line)) {
-                            Log.d("ConnectWifiListener", "连接失败");
                             if (handshakeTimeoutHandler != null) {
                                 handshakeTimeoutHandler.removeCallbacks(handshakeTimeoutRunnable);
                             }
@@ -73,7 +69,6 @@ public class ConnectWIfiListener {
 
                         // --- 连接成功事件 ---
                         else if (Pattern.matches(".*Received packet: .* ACK: your new IP .*(?:[0-9]{1,3}\\.){3}[0-9]{1,3}.*", line)) {
-                            Log.d("ConnectWifiListener", "连接成功");
                             if (handshakeTimeoutHandler != null) {
                                 handshakeTimeoutHandler.removeCallbacks(handshakeTimeoutRunnable);
                             }
@@ -87,19 +82,16 @@ public class ConnectWIfiListener {
 
                         // --- 握手事件 ---
                         else if (Pattern.matches(".*?:\\s+WPA:\\s+Sending\\s+EAPOL-Key\\s+2/4.*", line)) {
-                            Log.d("ConnectWifiListener", "握手中, 次数: " + (handshakeCount + 1));
 
                             // 模式1：处理超时
                             if (failSign == 1 && handshakeCount == 0) {
                                 // 仅在模式1且首次握手时，设置超时
                                 if (handshakeTimeoutHandler != null) {
-                                    Log.d("ConnectWifiListener", "设置握手超时任务: " + failSignTimeout + "ms");
                                     handshakeTimeoutHandler.postDelayed(handshakeTimeoutRunnable, failSignTimeout);
                                 }
                             }
                             // 模式2：处理次数超限 (在计数增加后判断)
                             if (failSign == 2 && handshakeCount == failSignCount) {
-                                Log.d("ConnectWifiListener", "握手次数超过最大值: " + failSignCount);
                                 if (this.onEvent != null) {
                                     this.onEvent.accept("handshake_maximum");
                                 }

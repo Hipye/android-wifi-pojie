@@ -7,13 +7,11 @@ import android.content.SharedPreferences;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class WifiApplication extends Application {
-    private static final String TAG = "WifiApplication";
     private static final String PREFS_NAME = "wifi_pojie_state";
     private static final String KEY_CURRENT_SSID = "current_ssid";
     private static final String KEY_CURRENT_DICT_FILE = "current_dict_file";
@@ -33,7 +31,6 @@ public class WifiApplication extends Application {
                 try {
                     saveCurrentStateSync();
                 } catch (Exception e) {
-                    Log.e(TAG, "保存状态失败", e);
                 }
                 
                 StringBuilder sb = new StringBuilder();
@@ -65,7 +62,6 @@ public class WifiApplication extends Application {
     private void saveCurrentStateSync() {
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
         prefs.edit().putBoolean(KEY_CURRENT_STATE_SAVED, true).apply();
-        Log.d(TAG, "异常退出状态已保存");
     }
     
     public static void saveCurrentStateDetails(Context context, String ssid, String dictFileName, Uri dictFileUri, int startLine) {
@@ -81,16 +77,12 @@ public class WifiApplication extends Application {
                 if (dictFileUri != null) {
                     String uriString = dictFileUri.toString();
                     editor.putString(KEY_CURRENT_DICT_FILE_URI, uriString);
-                    Log.d(TAG, "保存文件Uri: " + uriString);
                 } else {
                     editor.remove(KEY_CURRENT_DICT_FILE_URI);
-                    Log.d(TAG, "清除文件Uri");
                 }
 
                 editor.apply();
-                Log.d(TAG, "状态已保存: ssid=" + ssid + ", dictFile=" + dictFileName + ", uriExists=" + (dictFileUri != null) + ", startLine=" + startLine);
             } catch (Exception e) {
-                Log.e(TAG, "保存状态详情失败", e);
             }
         });
     }
@@ -106,9 +98,7 @@ public class WifiApplication extends Application {
                     .remove(KEY_CURRENT_START_LINE)
                     .putBoolean(KEY_CURRENT_STATE_SAVED, false)
                     .apply();
-                Log.d(TAG, "状态已清除");
             } catch (Exception e) {
-                Log.e(TAG, "清除状态失败", e);
             }
         });
     }
@@ -137,15 +127,9 @@ public class WifiApplication extends Application {
                     if (uriString != null && !uriString.isEmpty()) {
                         try {
                             dictFileUri = Uri.parse(uriString);
-                            Log.d(TAG, "恢复字典文件Uri: " + uriString + ", ssid=" + ssid + ", filename=" + dictFileName);
                         } catch (Exception e) {
-                            Log.e(TAG, "解析保存的Uri失败", e);
                         }
-                    } else {
-                        Log.d(TAG, "没有保存的文件Uri, ssid=" + ssid + ", filename=" + dictFileName);
                     }
-                } else {
-                    Log.d(TAG, "没有保存的状态");
                 }
 
                 final boolean finalHasState = hasState;
@@ -160,7 +144,6 @@ public class WifiApplication extends Application {
                     }
                 });
             } catch (Exception e) {
-                Log.e(TAG, "检查保存状态失败", e);
                 mainHandler.post(() -> {
                     if (callback != null) {
                         callback.onStateChecked(false, "", "", null, 1);
@@ -178,7 +161,6 @@ public class WifiApplication extends Application {
             try {
                 dictFileUri = Uri.parse(uriString);
             } catch (Exception e) {
-                Log.e(TAG, "解析保存的Uri失败", e);
             }
         }
         

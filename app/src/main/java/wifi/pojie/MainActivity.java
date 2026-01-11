@@ -9,7 +9,6 @@ import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ImageButton;
@@ -203,7 +202,6 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void setPipRunning(boolean running) {
-        Log.d("MainActivity", "设置可见状态" + running);
         pipRunningTip.setVisibility(running ? View.VISIBLE : View.GONE);
     }
 

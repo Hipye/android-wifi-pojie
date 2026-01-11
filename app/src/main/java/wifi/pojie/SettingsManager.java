@@ -3,7 +3,6 @@ package wifi.pojie;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.content.res.XmlResourceParser;
-import android.util.Log;
 
 import org.xmlpull.v1.XmlPullParser;
 
@@ -54,7 +53,6 @@ public class SettingsManager {
                 eventType = parser.next();
             }
         } catch (Exception e) {
-            Log.e(TAG, "Error loading default values from settings_items.xml", e);
         }
     }
 
@@ -67,7 +65,6 @@ public class SettingsManager {
             } else if (storedValue instanceof Boolean) {
                 // If it's a Boolean, it's an old, incorrect type. Remove it.
                 prefs.edit().remove(key).apply();
-                Log.w(TAG, "Removed old Boolean value for key: " + key + ". Falling back to default.");
             }
         }
         // If key not found, or if old Boolean value was removed, use default logic
@@ -77,7 +74,6 @@ public class SettingsManager {
             try {
                 defaultValue = Integer.parseInt(defaultValueStr);
             } catch (NumberFormatException e) {
-                Log.e(TAG, "Invalid default value for key: " + key, e);
             }
         }
         setInt(key, defaultValue);
@@ -97,7 +93,6 @@ public class SettingsManager {
             } else if (storedValue instanceof Integer) {
                 // If it's an Integer, it's an old, incorrect type. Remove it.
                 prefs.edit().remove(key).apply();
-                Log.w(TAG, "Removed old Integer value for key: " + key + ". Falling back to default.");
             }
         }
         String defaultValueStr = defaultValues.get(key);

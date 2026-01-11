@@ -42,6 +42,7 @@ public class SettingsFragment extends Fragment {
         view.findViewById(R.id.btn_setwork).setOnClickListener(v -> startActivity(new Intent(getActivity(), WorkmodeActivity.class)));
         view.findViewById(R.id.btn_zaxiang).setOnClickListener(v -> startActivity(new Intent(getActivity(), SettingsOtherActivity.class)));
         view.findViewById(R.id.btn_test).setOnClickListener(v -> startActivity(new Intent(getActivity(), TestActivity.class)));
+        view.findViewById(R.id.btn_dictionary_splitter).setOnClickListener(v -> startActivity(new Intent(getActivity(), DictionarySplitterActivity.class)));
 
         view.findViewById(R.id.github).setOnClickListener(v -> {
             Intent intent = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://github.com/bszapp/android-wifi-pojie"));

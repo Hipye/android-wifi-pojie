@@ -77,6 +77,11 @@
             android:screenOrientation="portrait"
             android:exported="false" />
 
+        <activity
+            android:name=".DictionarySplitterActivity"
+            android:screenOrientation="portrait"
+            android:exported="false" />
+
         <service
             android:name=".WifiPojieService"
             android:enabled="true"

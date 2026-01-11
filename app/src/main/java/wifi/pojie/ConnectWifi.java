@@ -11,7 +11,6 @@ import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiManager;
 import android.net.wifi.WifiNetworkSpecifier;
 import android.os.Build;
-import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.ActivityCompat;
@@ -113,7 +112,6 @@ public class ConnectWifi {
             int netId = wifiManager.addNetwork(wifiConfig);
 
             if (netId != -1) {
-                Log.d(TAG, "使用wifiManager添加网络" + netId);
                 wifiManager.enableNetwork(netId, true);
             } else {
                 throw new RuntimeException("connect fail\n忘记密码操作可能执行失败，请去设置手动点击忘记");
@@ -150,7 +148,6 @@ public class ConnectWifi {
             } else throw new RuntimeException("系统不支持，请使用API28模式");
         } else if (connectType == 2) {
             //2:命令行
-            Log.d(TAG, "执行cmd连接wifi" + password);
             String connectResult = runCommand("cmd wifi connect-network \"" + ssid + "\" wpa2 \"" + password + "\"", 0);
             if (connectResult.contains("does not have access to connect-network wifi command")) {
                 throw new RuntimeException(connectResult);
@@ -170,7 +167,6 @@ public class ConnectWifi {
 
     public void forgetWifiName(String ssid) {
         if (manageMode == 0) {
-            Log.d(TAG,"使用wifiManager忘记网络"+ssid);
             if (wifiManager.removeNetwork(getWifiId(ssid))) wifiManager.saveConfiguration();
         } else if (manageMode == 2) {
             runCommand("cmd wifi forget-network " + getWifiId(ssid), (int) settings.get(SettingsManager.KEY_MANAGE_MODE_CMD));

@@ -1,7 +1,6 @@
 package wifi.pojie;
 
 import android.content.pm.PackageManager;
-import android.util.Log;
 
 import rikka.shizuku.Shizuku;
 
@@ -16,8 +15,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class ShizukuHelper {
-    private static final String TAG = "ShizukuHelper";
-
     private ShizukuHelper() {
         // 工具类不需要实例化
     }
@@ -30,7 +27,6 @@ public class ShizukuHelper {
             // 尝试调用 Shizuku.pingBinder() 方法检查服务是否可用
             return Shizuku.pingBinder();
         } catch (Exception e) {
-            Log.w(TAG, "Shizuku is not available", e);
             return false;
         }
     }
@@ -41,12 +37,10 @@ public class ShizukuHelper {
     public static boolean checkPermission() {
         // 首先检查 Shizuku 服务是否可用
         if (!isShizukuAvailable()) {
-            Log.w(TAG, "Shizuku service is not available");
             return true;
         }
         
         if (Shizuku.isPreV11()) {
-            Log.w(TAG, "Shizuku version is pre-v11, not supported");
             return true;
         }
 
@@ -59,7 +53,6 @@ public class ShizukuHelper {
      */
     public static void addPermissionListener(Shizuku.OnRequestPermissionResultListener listener) {
         if (!isShizukuAvailable()) {
-            Log.w(TAG, "Shizuku service is not available, cannot add permission listener");
             return;
         }
         Shizuku.addRequestPermissionResultListener(listener);
@@ -70,7 +63,6 @@ public class ShizukuHelper {
      */
     public static void removePermissionListener(Shizuku.OnRequestPermissionResultListener listener) {
         if (!isShizukuAvailable()) {
-            Log.w(TAG, "Shizuku service is not available, cannot remove permission listener");
             return;
         }
         Shizuku.removeRequestPermissionResultListener(listener);
@@ -82,7 +74,6 @@ public class ShizukuHelper {
     public static void addBinderListener(Shizuku.OnBinderReceivedListener receivedListener,
                                         Shizuku.OnBinderDeadListener deadListener) {
         if (!isShizukuAvailable()) {
-            Log.w(TAG, "Shizuku service is not available, cannot add binder listener");
             return;
         }
         Shizuku.addBinderReceivedListener(receivedListener);
@@ -95,7 +86,6 @@ public class ShizukuHelper {
     public static void removeBinderListener(Shizuku.OnBinderReceivedListener receivedListener,
                                            Shizuku.OnBinderDeadListener deadListener) {
         if (!isShizukuAvailable()) {
-            Log.w(TAG, "Shizuku service is not available, cannot remove binder listener");
             return;
         }
         Shizuku.removeBinderReceivedListener(receivedListener);
@@ -180,7 +170,6 @@ public class ShizukuHelper {
                 try {
                     process.waitFor();
                 } catch (InterruptedException e) {
-                    Log.d(TAG, "Process was interrupted");
                 }
                 
                 // 如果没有被取消，则执行结束回调
@@ -188,7 +177,6 @@ public class ShizukuHelper {
                     onCommandFinished.accept(allOutput.toString());
                 }
             } catch (Exception e) {
-                Log.e(TAG, "Error executing command", e);
                 if (!isCancelled.get() && onCommandFinished != null) {
                     onCommandFinished.accept("Error: " + e.getMessage());
                 }

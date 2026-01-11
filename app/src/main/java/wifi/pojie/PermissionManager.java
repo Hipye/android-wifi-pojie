@@ -11,7 +11,6 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.PowerManager;
 import android.provider.Settings;
-import android.util.Log;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -189,8 +188,6 @@ public class PermissionManager {
         if (pathEnv != null) {
             for (String path : pathEnv.split(":")) {
                 if (new File(path, "su").exists()) {
-
-                    Log.d("pm", "allowRoot:" + allowRoot);
                     return allowRoot ? 1 : 0;
                 }
             }
@@ -300,7 +297,6 @@ public class PermissionManager {
     public void requestRootPermission(Consumer<Boolean> callback) {
         CommandRunner.executeCommand("su -c whoami", true, null, t -> {
             allowRoot = t.startsWith("root");
-            Log.d("pm", "set allowRoot:" + allowRoot);
             callback.accept(allowRoot);
         });
     }

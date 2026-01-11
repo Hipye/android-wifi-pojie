@@ -3,7 +3,6 @@ package wifi.pojie;
 import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.util.Log;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -178,8 +177,6 @@ public class WifiPojie {
      * 3. 更新保存的进度为当前尝试行数，以便异常退出时恢复
      */
     private void logAttempt(String ssid, int attemptCount, String correctPassword) {
-        Log.i("WifiPojie", "开始记录尝试数据: SSID=" + ssid + ", 尝试次数=" + attemptCount);
-
         SharedPreferences sharedPreferences = context.getSharedPreferences("wifi_attempts", Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
 
@@ -188,7 +185,6 @@ public class WifiPojie {
         try {
             attemptsArray = new JSONArray(existingData);
         } catch (JSONException e) {
-            Log.e("WifiPojie", "解析现有记录时出错", e);
             attemptsArray = new JSONArray();
         }
 
@@ -221,7 +217,6 @@ public class WifiPojie {
                     break;
                 }
             } catch (JSONException e) {
-                Log.e("WifiPojie", "遍历记录时出错", e);
             }
         }
         if (!found) {
@@ -235,12 +230,10 @@ public class WifiPojie {
                 attemptObject.put("usedDictionaries", usedDictionaries);
                 attemptsArray.put(attemptObject);
             } catch (JSONException e) {
-                Log.e("WifiPojie", "创建新记录对象时出错", e);
             }
         }
         editor.putString("attempts", attemptsArray.toString());
         editor.apply();
-        Log.i("WifiPojie", "记录已保存: SSID=" + ssid + ", 尝试次数=" + attemptCount + ", 密码=" + (correctPassword != null ? correctPassword : "N/A") + ", 字典文件=" + dictionaryFileName);
         
         WifiApplication.saveCurrentStateDetails(context, ssid, dictionaryFileName, null, currentTryIndex + 1);
     }

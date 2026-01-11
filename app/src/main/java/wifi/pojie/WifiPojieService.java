@@ -7,7 +7,6 @@ import android.content.Intent;
 import android.os.Binder;
 import android.os.Build;
 import android.os.IBinder;
-import android.util.Log;
 
 import com.google.gson.Gson;
 
@@ -44,7 +43,6 @@ public class WifiPojieService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "WifiPojieService created");
     }
 
     private Map<String, Object> parseConfig(String jsonConfig) {
@@ -74,8 +72,6 @@ public class WifiPojieService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "WifiPojieService started");
-
         if (showNotification) showForegroundNotification();
 
         if (intent != null) {
@@ -99,7 +95,6 @@ public class WifiPojieService extends Service {
 
     private void startWifiPojie(Map<String, Object> config, Map<String, Object> settings) {
         if (isRunning) {
-            Log.w(TAG, "WifiPojie is already running");
             return;
         }
         showNotification = (boolean) settings.get(SettingsManager.KEY_SHOW_NOTIFICATION);
@@ -116,7 +111,6 @@ public class WifiPojieService extends Service {
                     this::onDictionaryFinished
             );
         } catch (ExecutionException | InterruptedException e) {
-            Log.e(TAG, "Failed to start WifiPojie", e);
             isRunning = false;
             stopForeground(true);
             stopSelf();
@@ -124,25 +118,19 @@ public class WifiPojieService extends Service {
     }
 
     private void onDictionaryFinished() {
-        Log.d(TAG, "Current dictionary finished");
-        // 通过广播通知Activity当前字典已尝试完毕
         Intent intent = new Intent(ACTION_DICTIONARY_FINISHED);
         sendBroadcast(intent);
     }
 
     private void onLogOutput(String output) {
-        Log.d(TAG, "WifiPojie output: " + output);
-        // 通过广播将日志信息传递给Activity
         Intent intent = new Intent(ACTION_LOG_OUTPUT);
         intent.putExtra(EXTRA_LOG_MESSAGE, output);
         sendBroadcast(intent);
     }
 
     private void onProgressUpdate(Integer progress, Integer total, String text) {
-        Log.d(TAG, "WifiPojie progress: " + text);
         if (showNotification) showForegroundNotification("WiFi破解运行中", text, progress, total);
 
-        // 通过广播将进度信息传递给Activity
         Intent intent = new Intent(ACTION_PROGRESS_UPDATE);
         intent.putExtra(EXTRA_PROGRESS, progress);
         intent.putExtra(EXTRA_TOTAL, total);
@@ -151,13 +139,10 @@ public class WifiPojieService extends Service {
     }
 
     private void onFinished() {
-        Log.d(TAG, "WifiPojie finished");
         isRunning = false;
 
-        // 发送任务完成的通知
         if (showNotification) showFinishedNotification();
 
-        // 通过广播通知Activity任务已完成
         Intent intent = new Intent(ACTION_FINISHED);
         sendBroadcast(intent);
 
@@ -237,7 +222,6 @@ public class WifiPojieService extends Service {
     @Override
     public void onDestroy() {
         isRunning = false;
-        Log.d(TAG, "WifiPojieService destroyed");
         if (wifiPojie != null) {
             wifiPojie.destroy(false);
             wifiPojie.shutdownExecutorService();

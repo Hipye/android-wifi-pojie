@@ -160,6 +160,7 @@ public class WifiPojie {
      * 逻辑：
      * 1. 如果已存在该ssid，则尝试次数+1，若本次密码正确则更新密码。
      * 2. 如果不存在则新建。
+     * 3. 更新保存的进度为当前尝试行数，以便异常退出时恢复
      */
     private void logAttempt(String ssid, int attemptCount, String correctPassword) {
         Log.i("WifiPojie", "开始记录尝试数据: SSID=" + ssid + ", 尝试次数=" + attemptCount);
@@ -215,6 +216,9 @@ public class WifiPojie {
         editor.putString("attempts", attemptsArray.toString());
         editor.apply();
         Log.i("WifiPojie", "记录已保存: SSID=" + ssid + ", 尝试次数=" + attemptCount + ", 密码=" + (correctPassword != null ? correctPassword : "N/A") + ", 字典文件=" + dictionaryFileName);
+        
+        // 更新保存的进度为当前尝试行数（currentTryIndex + 1），以便异常退出时恢复
+        WifiApplication.saveCurrentStateDetails(context, ssid, dictionaryFileName, null, currentTryIndex + 1);
     }
 
     public void destroy(boolean byUser) {

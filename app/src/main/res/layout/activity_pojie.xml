@@ -143,6 +143,15 @@
                         android:layout_height="wrap_content"
                         android:text="@string/input_tip" />
 
+                    <TextView
+                        android:id="@+id/dictionary_list"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="已选择: 0 个字典"
+                        android:textSize="12sp"
+                        android:textColor="@color/grey" />
+
                 </LinearLayout>
 
                 <LinearLayout

@@ -7,6 +7,7 @@ import android.app.PendingIntent;
 import android.app.PictureInPictureParams;
 import android.app.RemoteAction;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -108,15 +109,32 @@ public class PojieActivity extends Fragment {
     private LinearLayout failCountGroup;
     private EditText failTimeoutInput;
     private EditText failCountInput;
+    private TextView dictionaryListText;
 
     private volatile boolean isRunning = false;
     private String[] dictionary = new String[]{}; // 默认词典
     private String currentDictFileName = "";
     private Uri currentDictFileUri = null;
+    private List<DictionaryFile> dictionaryFiles = new ArrayList<>();
+    private int currentDictionaryIndex = 0;
     private boolean isCheckingSavedState = false;
     private WifiPojieService wifiPojieService;
     private boolean isServiceBound = false;
     private SettingsManager settingsManager;
+
+    private static class DictionaryFile {
+        String fileName;
+        Uri fileUri;
+        String[] content;
+        int totalLines;
+
+        DictionaryFile(String fileName, Uri fileUri, String[] content) {
+            this.fileName = fileName;
+            this.fileUri = fileUri;
+            this.content = content;
+            this.totalLines = content != null ? content.length : 0;
+        }
+    }
 
     private static final String ACTION_PIP_EXECUTE = "wifi.pojie.ACTION_PIP_EXECUTE";
 
@@ -171,6 +189,8 @@ public class PojieActivity extends Fragment {
                 requireActivity().runOnUiThread(() -> progressText.append("【已暂停】"));
                 stopRunningCommand();
                 hideProgressNotification();
+            } else if (WifiPojieService.ACTION_DICTIONARY_FINISHED.equals(action)) {
+                handleDictionaryFinished();
             }
         }
     };
@@ -208,11 +228,18 @@ public class PojieActivity extends Fragment {
         filePickerLauncher = registerForActivityResult(
                 new ActivityResultContracts.StartActivityForResult(),
                 result -> {
-                    if (result.getResultCode() == AppCompatActivity.RESULT_OK && result.getData() != null) {
-                        Uri uri = result.getData().getData();
-                        if (uri != null && getActivity() != null) {
-                            String fileName = getFileNameFromUri(uri);
-                            handleDictionarySelected(uri, fileName);
+                    if (result.getResultCode() == AppCompatActivity.RESULT_OK && result.getData() != null && getActivity() != null) {
+                        Intent data = result.getData();
+                        ClipData clipData = data.getClipData();
+                        
+                        if (clipData != null && clipData.getItemCount() > 0) {
+                            handleMultipleDictionariesSelected(clipData);
+                        } else {
+                            Uri uri = data.getData();
+                            if (uri != null) {
+                                String fileName = getFileNameFromUri(uri);
+                                handleDictionarySelected(uri, fileName);
+                            }
                         }
                     }
                 }
@@ -343,6 +370,7 @@ public class PojieActivity extends Fragment {
         failCountGroup = view.findViewById(R.id.fail_sign_count);
         failTimeoutInput = view.findViewById(R.id.fail_sign_timeout_input);
         failCountInput = view.findViewById(R.id.fail_sign_count_input);
+        dictionaryListText = view.findViewById(R.id.dictionary_list);
 
         String appVersion = "v" + getVersionName(requireContext());
 
@@ -530,8 +558,9 @@ public class PojieActivity extends Fragment {
             Log.d(TAG, "Selecting dictionary");
             Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
             intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
             intent.addCategory(Intent.CATEGORY_OPENABLE);
-            filePickerLauncher.launch(Intent.createChooser(intent, "选择字典文件"));
+            filePickerLauncher.launch(Intent.createChooser(intent, "选择字典文件（可多选）"));
         });
 
         assert getView() != null;
@@ -729,6 +758,154 @@ public class PojieActivity extends Fragment {
             Log.e(TAG, "获取文件名失败", e);
             return null;
         }
+    }
+
+    private void handleMultipleDictionariesSelected(ClipData clipData) {
+        int count = clipData.getItemCount();
+        Log.d(TAG, "选择了 " + count + " 个字典文件");
+        
+        Toast t = Toast.makeText(getActivity(), "正在加载 " + count + " 个字典文件...", Toast.LENGTH_SHORT);
+        t.show();
+        
+        fileReadExecutor.submit(() -> {
+            List<DictionaryFile> loadedDictionaries = new ArrayList<>();
+            int successCount = 0;
+            int failCount = 0;
+            
+            for (int i = 0; i < count; i++) {
+                ClipData.Item item = clipData.getItemAt(i);
+                Uri uri = item.getUri();
+                if (uri != null) {
+                    try {
+                        String fileName = getFileNameFromUri(uri);
+                        String[] content = readDictionaryFromFile(uri);
+                        loadedDictionaries.add(new DictionaryFile(fileName, uri, content));
+                        successCount++;
+                        Log.d(TAG, "成功加载字典: " + fileName + " (" + content.length + " 项)");
+                    } catch (Exception e) {
+                        failCount++;
+                        Log.e(TAG, "加载字典失败: " + uri, e);
+                    }
+                }
+            }
+            
+            final int finalSuccessCount = successCount;
+            final int finalFailCount = failCount;
+            
+            requireActivity().runOnUiThread(() -> {
+                t.cancel();
+                
+                if (loadedDictionaries.isEmpty()) {
+                    Toast.makeText(getActivity(), "没有成功加载任何字典文件", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                
+                loadedDictionaries.sort((a, b) -> a.fileName.compareToIgnoreCase(b.fileName));
+                dictionaryFiles = loadedDictionaries;
+                currentDictionaryIndex = 0;
+                
+                DictionaryFile firstDict = dictionaryFiles.get(0);
+                dictionary = firstDict.content;
+                currentDictFileName = firstDict.fileName;
+                currentDictFileUri = firstDict.fileUri;
+                
+                updateDictionaryListDisplay();
+                
+                dictionarySelect.setText("已选择 " + dictionaryFiles.size() + " 个字典");
+                
+                String message = "加载完成: " + finalSuccessCount + " 个成功";
+                if (finalFailCount > 0) {
+                    message += ", " + finalFailCount + " 个失败";
+                }
+                Toast.makeText(getActivity(), message, Toast.LENGTH_SHORT).show();
+                addLog(message);
+            });
+        });
+    }
+
+    private void handleDictionaryFinished() {
+        requireActivity().runOnUiThread(() -> {
+            if (dictionaryFiles.isEmpty()) {
+                addLog("没有可用的字典文件");
+                stopRunningCommand();
+                return;
+            }
+
+            if (currentDictionaryIndex < dictionaryFiles.size() - 1) {
+                currentDictionaryIndex++;
+                DictionaryFile nextDict = dictionaryFiles.get(currentDictionaryIndex);
+
+                currentDictFileName = nextDict.fileName;
+                currentDictFileUri = nextDict.fileUri;
+                dictionary = nextDict.content;
+
+                updateDictionaryListDisplay();
+                addLog("当前字典所有密码尝试完毕！");
+                addLog("切换到下一个字典: " + nextDict.fileName + " (" + nextDict.totalLines + " 项)");
+
+                String ssid = wifiSsid.getText().toString();
+                int timeoutMillis = Integer.parseInt(tryTime.getText().toString());
+                int failSignValue = failSign.getSelectedId();
+                int failSignTimeout = Integer.parseInt(failTimeoutInput.getText().toString());
+                int failSignCount = Integer.parseInt(failCountInput.getText().toString());
+
+                Map<String, Object> config = new HashMap<>();
+                config.put("ssid", ssid);
+                config.put("dictionary", dictionary);
+                config.put("timeoutMillis", timeoutMillis);
+                config.put("startLine", 1);
+                config.put("failSign", failSignValue);
+                config.put("failSignTimeout", failSignTimeout);
+                config.put("failSignCount", failSignCount);
+                config.put("dictionaryFileName", currentDictFileName);
+
+                List<String> dictionaryFileNames = new ArrayList<>();
+                for (DictionaryFile dict : dictionaryFiles) {
+                    dictionaryFileNames.add(dict.fileName);
+                }
+                config.put("dictionaryFileNames", dictionaryFileNames);
+                config.put("currentDictionaryIndex", currentDictionaryIndex);
+
+                Gson gson = new Gson();
+                String jsonConfig = gson.toJson(config);
+                String jsonSettings = gson.toJson(settingsManager.getAllSettings());
+
+                Intent serviceIntent = new Intent(getActivity(), WifiPojieService.class);
+                serviceIntent.putExtra("config", jsonConfig);
+                serviceIntent.putExtra("settings", jsonSettings);
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    getActivity().startForegroundService(serviceIntent);
+                } else {
+                    getActivity().startService(serviceIntent);
+                }
+            } else {
+                addLog("所有字典尝试完毕，连接失败！");
+                stopRunningCommand();
+            }
+        });
+    }
+
+    private void updateDictionaryListDisplay() {
+        if (dictionaryFiles.isEmpty()) {
+            dictionaryListText.setText("已选择: 0 个字典");
+            return;
+        }
+        
+        StringBuilder sb = new StringBuilder();
+        sb.append("已选择: ").append(dictionaryFiles.size()).append(" 个字典\n");
+        for (int i = 0; i < dictionaryFiles.size(); i++) {
+            DictionaryFile dict = dictionaryFiles.get(i);
+            sb.append(i + 1).append(". ").append(dict.fileName)
+              .append(" (").append(dict.totalLines).append(" 项)");
+            if (i == currentDictionaryIndex) {
+                sb.append(" [当前]");
+            }
+            if (i < dictionaryFiles.size() - 1) {
+                sb.append("\n");
+            }
+        }
+        dictionaryListText.setText(sb.toString());
     }
 
     private void stopRunningCommand() {

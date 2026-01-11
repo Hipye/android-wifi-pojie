@@ -84,8 +84,19 @@ public class HistoryActivity extends Fragment {
                 String ssid = jsonObject.getString("ssid");
                 int attemptCount = jsonObject.getInt("attemptCount");
                 String password = jsonObject.optString("correctPassword", "N/A");
-                String dictionaryFileName = jsonObject.optString("dictionaryFileName", "未指定");
-                historyItemList.add(new HistoryItem(ssid, attemptCount, password, dictionaryFileName));
+                
+                List<String> usedDictionaries = new ArrayList<>();
+                JSONArray dictArray = jsonObject.optJSONArray("usedDictionaries");
+                if (dictArray != null && dictArray.length() > 0) {
+                    for (int j = 0; j < dictArray.length(); j++) {
+                        usedDictionaries.add(dictArray.getString(j));
+                    }
+                } else {
+                    String singleDict = jsonObject.optString("dictionaryFileName", "未指定");
+                    usedDictionaries.add(singleDict);
+                }
+                
+                historyItemList.add(new HistoryItem(ssid, attemptCount, password, usedDictionaries));
             }
         } catch (JSONException e) {
             e.printStackTrace();
@@ -125,13 +136,13 @@ public class HistoryActivity extends Fragment {
         private final String ssid;
         private final int attemptCount;
         private final String correctPassword;
-        private final String dictionaryFileName;
+        private final List<String> usedDictionaries;
 
-        public HistoryItem(String ssid, int attemptCount, String correctPassword, String dictionaryFileName) {
+        public HistoryItem(String ssid, int attemptCount, String correctPassword, List<String> usedDictionaries) {
             this.ssid = ssid;
             this.attemptCount = attemptCount;
             this.correctPassword = correctPassword;
-            this.dictionaryFileName = dictionaryFileName;
+            this.usedDictionaries = usedDictionaries;
         }
 
         public String getSsid() {
@@ -146,8 +157,8 @@ public class HistoryActivity extends Fragment {
             return correctPassword;
         }
 
-        public String getDictionaryFileName() {
-            return dictionaryFileName;
+        public List<String> getUsedDictionaries() {
+            return usedDictionaries;
         }
     }
 
@@ -202,7 +213,26 @@ public class HistoryActivity extends Fragment {
                 password = "-";
             }
             holder.detailsTextView.setText("已使用行数: " + item.getAttemptCount() + "  密码: " + password);
-            holder.dictionaryTextView.setText("字典: " + item.getDictionaryFileName());
+            
+            List<String> dicts = item.getUsedDictionaries();
+            if (dicts != null && !dicts.isEmpty()) {
+                StringBuilder dictText = new StringBuilder("字典: ");
+                if (dicts.size() == 1) {
+                    dictText.append(dicts.get(0));
+                } else {
+                    dictText.append(dicts.size()).append(" 个 (");
+                    for (int i = 0; i < dicts.size(); i++) {
+                        if (i > 0) {
+                            dictText.append(", ");
+                        }
+                        dictText.append(dicts.get(i));
+                    }
+                    dictText.append(")");
+                }
+                holder.dictionaryTextView.setText(dictText.toString());
+            } else {
+                holder.dictionaryTextView.setText("字典: 未指定");
+            }
 
             holder.deleteButton.setOnClickListener(v -> {
                 historyItems.remove(position);

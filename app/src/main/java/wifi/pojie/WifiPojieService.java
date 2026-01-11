@@ -23,6 +23,7 @@ public class WifiPojieService extends Service {
     public static final String ACTION_LOG_OUTPUT = "wifi.pojie.LOG_OUTPUT";
     public static final String ACTION_PROGRESS_UPDATE = "wifi.pojie.PROGRESS_UPDATE";
     public static final String ACTION_FINISHED = "wifi.pojie.FINISHED";
+    public static final String ACTION_DICTIONARY_FINISHED = "wifi.pojie.DICTIONARY_FINISHED";
     public static final String EXTRA_LOG_MESSAGE = "log_message";
     public static final String EXTRA_PROGRESS = "progress";
     public static final String EXTRA_TOTAL = "total";
@@ -111,7 +112,8 @@ public class WifiPojieService extends Service {
                     settings,
                     this::onLogOutput,
                     this::onProgressUpdate,
-                    this::onFinished
+                    this::onFinished,
+                    this::onDictionaryFinished
             );
         } catch (ExecutionException | InterruptedException e) {
             Log.e(TAG, "Failed to start WifiPojie", e);
@@ -119,6 +121,13 @@ public class WifiPojieService extends Service {
             stopForeground(true);
             stopSelf();
         }
+    }
+
+    private void onDictionaryFinished() {
+        Log.d(TAG, "Current dictionary finished");
+        // 通过广播通知Activity当前字典已尝试完毕
+        Intent intent = new Intent(ACTION_DICTIONARY_FINISHED);
+        sendBroadcast(intent);
     }
 
     private void onLogOutput(String output) {

@@ -9,6 +9,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutionException;
@@ -24,6 +25,7 @@ public class WifiPojie {
     private final Consumer<String> logOutputFunction;
     private final TriConsumer<Integer, Integer, String> progressFunction;
     private final Runnable endFunc;
+    private final Runnable onDictionaryFinished;
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private ConnectWifi connectWifi;
@@ -31,6 +33,8 @@ public class WifiPojie {
     private int currentTryIndex;
     private final Context context;
     private String dictionaryFileName;
+    private final List<String> dictionaryFileNames;
+    private final int currentDictionaryIndex;
 
     /**
      * 构造函数
@@ -40,13 +44,15 @@ public class WifiPojie {
      * @param logOutputFunction 输出日志函数
      * @param progressFunction  设置进度函数(当前进度数字,总进度数字,进度信息文本)
      * @param endFunc           任务结束时执行的函数
+     * @param onDictionaryFinished 当前字典尝试完毕时执行的函数
      */
     public WifiPojie(Context context,
                      Map<String, ?> config,
                      Map<String, ?> settings,
                      Consumer<String> logOutputFunction,
                      TriConsumer<Integer, Integer, String> progressFunction,
-                     Runnable endFunc) throws ExecutionException, InterruptedException {
+                     Runnable endFunc,
+                     Runnable onDictionaryFinished) throws ExecutionException, InterruptedException {
 
 
         this.context = context;
@@ -56,8 +62,11 @@ public class WifiPojie {
         this.logOutputFunction = logOutputFunction;
         this.progressFunction = progressFunction;
         this.endFunc = endFunc;
+        this.onDictionaryFinished = onDictionaryFinished;
         this.currentTryIndex = (int) config.get("startLine") - 1;
         this.dictionaryFileName = config.get("dictionaryFileName") != null ? (String) config.get("dictionaryFileName") : "未指定";
+        this.dictionaryFileNames = config.get("dictionaryFileNames") != null ? (List<String>) config.get("dictionaryFileNames") : null;
+        this.currentDictionaryIndex = config.get("currentDictionaryIndex") != null ? (int) config.get("currentDictionaryIndex") : 0;
 
         // 在后台线程启动破解过程
         logOutputFunction.accept("      _      __                 _        \n" +
@@ -108,7 +117,13 @@ public class WifiPojie {
         // 检查是否已被销毁
         if (isDestroyed || currentTryIndex >= dictionary.length) {
             if (currentTryIndex >= dictionary.length) {
-                logOutputFunction.accept("所有密码尝试完毕，连接失败！");
+                logOutputFunction.accept("当前字典所有密码尝试完毕！");
+                if (onDictionaryFinished != null) {
+                    onDictionaryFinished.run();
+                } else {
+                    logOutputFunction.accept("所有字典尝试完毕，连接失败！");
+                    destroy(true);
+                }
             }
             destroy(true);
             return;
@@ -168,7 +183,6 @@ public class WifiPojie {
         SharedPreferences sharedPreferences = context.getSharedPreferences("wifi_attempts", Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = sharedPreferences.edit();
 
-        // 获取现有记录
         String existingData = sharedPreferences.getString("attempts", "[]");
         JSONArray attemptsArray;
         try {
@@ -183,15 +197,26 @@ public class WifiPojie {
             try {
                 JSONObject obj = attemptsArray.getJSONObject(i);
                 if (obj.getString("ssid").equals(ssid)) {
-                    // 已存在该ssid，尝试次数+1
                     int oldCount = obj.optInt("attemptCount", 0);
                     obj.put("attemptCount", oldCount + 1);
-                    // 如果本次密码正确，更新密码
                     if (correctPassword != null && !"N/A".equals(correctPassword)) {
                         obj.put("correctPassword", correctPassword);
                     }
-                    // 更新字典文件名
-                    obj.put("dictionaryFileName", dictionaryFileName);
+                    JSONArray usedDictionaries = obj.optJSONArray("usedDictionaries");
+                    if (usedDictionaries == null) {
+                        usedDictionaries = new JSONArray();
+                    }
+                    boolean dictExists = false;
+                    for (int j = 0; j < usedDictionaries.length(); j++) {
+                        if (usedDictionaries.getString(j).equals(dictionaryFileName)) {
+                            dictExists = true;
+                            break;
+                        }
+                    }
+                    if (!dictExists) {
+                        usedDictionaries.put(dictionaryFileName);
+                    }
+                    obj.put("usedDictionaries", usedDictionaries);
                     found = true;
                     break;
                 }
@@ -200,24 +225,23 @@ public class WifiPojie {
             }
         }
         if (!found) {
-            // 新建记录
             JSONObject attemptObject = new JSONObject();
             try {
                 attemptObject.put("ssid", ssid);
                 attemptObject.put("attemptCount", 1);
                 attemptObject.put("correctPassword", correctPassword != null ? correctPassword : "N/A");
-                attemptObject.put("dictionaryFileName", dictionaryFileName);
+                JSONArray usedDictionaries = new JSONArray();
+                usedDictionaries.put(dictionaryFileName);
+                attemptObject.put("usedDictionaries", usedDictionaries);
                 attemptsArray.put(attemptObject);
             } catch (JSONException e) {
                 Log.e("WifiPojie", "创建新记录对象时出错", e);
             }
         }
-        // 保存更新后的记录
         editor.putString("attempts", attemptsArray.toString());
         editor.apply();
         Log.i("WifiPojie", "记录已保存: SSID=" + ssid + ", 尝试次数=" + attemptCount + ", 密码=" + (correctPassword != null ? correctPassword : "N/A") + ", 字典文件=" + dictionaryFileName);
         
-        // 更新保存的进度为当前尝试行数（currentTryIndex + 1），以便异常退出时恢复
         WifiApplication.saveCurrentStateDetails(context, ssid, dictionaryFileName, null, currentTryIndex + 1);
     }
 

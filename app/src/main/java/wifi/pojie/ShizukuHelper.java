@@ -118,6 +118,7 @@ public class ShizukuHelper {
         
         // 存储所有输出
         StringBuilder allOutput = new StringBuilder();
+        final int MAX_OUTPUT_SIZE = 10 * 1024 * 1024;
         
         // 创建进程引用
         Process[] processHolder = new Process[1];
@@ -146,7 +147,9 @@ public class ShizukuHelper {
                     }
                     
                     // 添加到总输出
-                    allOutput.append(line).append("\n");
+                    if (allOutput.length() < MAX_OUTPUT_SIZE) {
+                        allOutput.append(line).append("\n");
+                    }
                     
                     // 回调通知新行输出
                     if (onOutputReceived != null) {
@@ -163,7 +166,9 @@ public class ShizukuHelper {
                     }
                     
                     // 添加到总输出
-                    allOutput.append(line).append("\n");
+                    if (allOutput.length() < MAX_OUTPUT_SIZE) {
+                        allOutput.append(line).append("\n");
+                    }
                     
                     // 回调通知新行输出（错误信息也通过这个回调）
                     if (onOutputReceived != null) {

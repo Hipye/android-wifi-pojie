@@ -24,6 +24,7 @@ public class CommandRunner {
         AtomicBoolean isRunning = new AtomicBoolean(true);
 
         StringBuilder allOutput = new StringBuilder();
+        final int MAX_OUTPUT_SIZE = 10 * 1024 * 1024;
         Process[] processHolder = new Process[1];
 
         Thread outputThread = new Thread(() -> {
@@ -41,21 +42,24 @@ public class CommandRunner {
 
                 while (isRunning.get() && (line = reader.readLine()) != null) {
                     if (isCancelled.get()) break;
-                    allOutput.append(line).append("\n");
+                    if (allOutput.length() < MAX_OUTPUT_SIZE) {
+                        allOutput.append(line).append("\n");
+                    }
                     if (onOutputReceived != null) onOutputReceived.accept(line);
                 }
 
                 BufferedReader errorReader = new BufferedReader(new InputStreamReader(process.getErrorStream()));
                 while (isRunning.get() && (line = errorReader.readLine()) != null) {
                     if (isCancelled.get()) break;
-                    allOutput.append(line).append("\n");
+                    if (allOutput.length() < MAX_OUTPUT_SIZE) {
+                        allOutput.append(line).append("\n");
+                    }
                     if (onOutputReceived != null) onOutputReceived.accept(line);
                 }
 
                 try {
                     process.waitFor();
                 } catch (InterruptedException e) {
-                    // 线程被中断
                 }
 
                 if (!isCancelled.get() && onCommandFinished != null)

@@ -118,6 +118,7 @@ public class WifiPojieService extends Service {
     }
 
     private void onDictionaryFinished() {
+        isRunning = false;
         Intent intent = new Intent(ACTION_DICTIONARY_FINISHED);
         sendBroadcast(intent);
     }

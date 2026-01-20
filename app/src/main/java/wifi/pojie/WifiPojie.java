@@ -119,12 +119,16 @@ public class WifiPojie {
                 logOutputFunction.accept("当前字典所有密码尝试完毕！");
                 if (onDictionaryFinished != null) {
                     onDictionaryFinished.run();
+                    // 结束当前字典的运行，但不通知Service完全停止
+                    destroy(true, false);
+                    return;
                 } else {
                     logOutputFunction.accept("所有字典尝试完毕，连接失败！");
                     destroy(true);
                 }
+            } else {
+                destroy(true);
             }
-            destroy(true);
             return;
         }
 
@@ -239,6 +243,10 @@ public class WifiPojie {
     }
 
     public void destroy(boolean byUser) {
+        destroy(byUser, true);
+    }
+
+    public void destroy(boolean byUser, boolean notifyEnd) {
         if (isDestroyed) return;
         try {
             if (byUser) {
@@ -255,7 +263,7 @@ public class WifiPojie {
             logOutputFunction.accept("==运行结束==");
         }
 
-        if (endFunc != null) {
+        if (notifyEnd && endFunc != null) {
             endFunc.run();
         }
     }
